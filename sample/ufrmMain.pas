@@ -47,16 +47,16 @@ var
 begin
   LCds := TClientDataSet.Create(Nil);
 
-  CacheControl.AddItem<TClientDataSet>('1', LCds, 5000);
+  CacheControl.AddItem<TClientDataSet>('1', LCds);
 
 end;
 
 procedure TfrmMain.Button2Click(Sender: TObject);
 var
-  LStr: TStringList;
+  lCds: TClientDataSet;
 begin
 
-  if CacheControl.GetItemByKey<TStringList>('1', LStr) then
+  if CacheControl.GetItemByKey<TClientDataSet>('1', lCds) then
     SHowmessage('Exists')
   else
     SHowmessage('Not Exists');

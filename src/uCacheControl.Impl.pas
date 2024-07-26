@@ -34,7 +34,6 @@ type
     FCache: TObjectDictionary<string, TObject>;
     FItems: TObjectDictionary<string, TCacheItem<TObject>>;
     FTimerTTL: TTimer;
-    procedure EnqueueCacheItem(const AItem: TCacheItem<TObject>);
     procedure OnTimerTTL(Sender: TObject);
   public
     function AddItem<T: class>(AKey: string; AValue: T; ATimeToLive: Integer = 0): Boolean;
@@ -56,22 +55,27 @@ function TCacheControl.AddItem<T>(AKey: string; AValue: T; ATimeToLive: Integer)
 var
   LCacheItem: TCacheItem<TObject>;
 begin
+  CacheCriticalSession.Enter;
   try
-    LCacheItem := TCacheItem<TObject>.Create;
-    LCacheItem.Key := AKey;
-    LCacheItem.TimeToLive := ATimeToLive;
-    LCacheItem.Inserted := GetTickCount;
+    try
+      LCacheItem := TCacheItem<TObject>.Create;
+      LCacheItem.Key := AKey;
+      LCacheItem.TimeToLive := ATimeToLive;
+      LCacheItem.Inserted := GetTickCount;
 
-    FItems.Add(AKey, LCacheItem);
-    FCache.Add(AKey, AValue);
+      FItems.Add(AKey, LCacheItem);
+      FCache.Add(AKey, AValue);
 
-    Result := True;
-  except
-    on E: Exception do
-    begin
-      Result := False;
-      raise Exception.Create('Cache Control: Error when adding a new item: ' + E.Message);
+      Result := True;
+    except
+      on E: Exception do
+      begin
+        Result := False;
+        raise Exception.Create('Cache Control: Error when adding a new item: ' + E.Message);
+      end;
     end;
+  finally
+    CacheCriticalSession.Leave;
   end;
 end;
 
@@ -114,21 +118,6 @@ begin
   FCache.Free;
   FItems.Free;
   inherited;
-end;
-
-procedure TCacheControl.EnqueueCacheItem(const AItem: TCacheItem<TObject>);
-begin
-  CacheCriticalSession.Enter;
-  try
-    try
-      FItems.Add(AItem.Key, AItem);
-    except
-      on E: Exception do
-        raise Exception.Create(E.Message);
-    end;
-  finally
-    CacheCriticalSession.Leave;
-  end;
 end;
 
 function TCacheControl.GetItemByKey<T>(AKey: string; var AValue: T): Boolean;
@@ -187,7 +176,7 @@ begin
       if FItems.TryGetValue(LCacheKey, LCacheItem) then
       begin
         if (LCacheItem.TimeToLive > 0) and
-          ((GetTickCount - LCacheItem.Inserted) > LCacheItem.TimeToLive) then
+          ((Int64(GetTickCount) - LCacheItem.Inserted) > LCacheItem.TimeToLive) then
         begin
           FItems.Remove(LCacheKey);
           FCache.Remove(LCacheKey);
